@@ -6,3 +6,6 @@ tclpy.o
 # Build output
 libtclpy*.so
 pkgIndex.tcl
+
+# CMake build directory
+build/

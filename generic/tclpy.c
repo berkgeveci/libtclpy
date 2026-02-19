@@ -1,7 +1,21 @@
 #include <Python.h>
 #include <tcl.h>
 #include <assert.h>
-#include <dlfcn.h>
+#include <string.h>
+
+#ifdef _WIN32
+#  include <windows.h>
+#else
+#  include <dlfcn.h>
+#endif
+
+#ifndef DLLEXPORT
+#  ifdef _WIN32
+#    define DLLEXPORT __declspec(dllexport)
+#  else
+#    define DLLEXPORT
+#  endif
+#endif
 
 /* TCL LIBRARY BEGINS HERE */
 
@@ -249,7 +263,7 @@ PyCall_Cmd(
 	PyObject *pObjParent = NULL;
 	PyObject *pObj = pMainModule;
 	PyObject *pObjStr = NULL;
-	char *dot = index(objandfn, '.');
+	char *dot = strchr(objandfn, '.');
 	while (dot != NULL) {
 		pObjParent = pObj;
 
@@ -266,7 +280,7 @@ PyCall_Cmd(
 			return PY_ERROR;
 
 		objandfn = dot + 1;
-		dot = index(objandfn, '.');
+		dot = strchr(objandfn, '.');
 	}
 
 	PyObject *pFn = PyObject_GetAttrString(pObj, objandfn);
@@ -478,10 +492,10 @@ typedef enum {
 } ParentInterp;
 static ParentInterp parentInterp = NO_PARENT;
 
-int Tclpy_Init(Tcl_Interp *interp);
+DLLEXPORT int Tclpy_Init(Tcl_Interp *interp);
 PyObject *init_python_tclpy(Tcl_Interp* interp);
 
-int
+DLLEXPORT int
 Tclpy_Init(Tcl_Interp *interp)
 {
 	/* TODO: all TCL_ERRORs should set an error return */
@@ -491,9 +505,9 @@ Tclpy_Init(Tcl_Interp *interp)
 	if (parentInterp == NO_PARENT)
 		parentInterp = TCL_PARENT;
 
-	if (Tcl_InitStubs(interp, "8.5", 0) == NULL)
+	if (Tcl_InitStubs(interp, "8.5-", 0) == NULL)
 		return TCL_ERROR;
-	if (Tcl_PkgRequire(interp, "Tcl", "8.5", 0) == NULL)
+	if (Tcl_PkgRequire(interp, "Tcl", "8.5-", 0) == NULL)
 		return TCL_ERROR;
 	if (Tcl_PkgProvide(interp, "tclpy", PACKAGE_VERSION) != TCL_OK)
 		return TCL_ERROR;
@@ -505,12 +519,24 @@ Tclpy_Init(Tcl_Interp *interp)
 
 	/* Hack to fix Python C extensions not linking to libpython*.so */
 	/* http://bugs.python.org/issue4434 */
+#ifdef _WIN32
+	LoadLibraryA(PY_LIBFILE);
+#else
 	dlopen(PY_LIBFILE, RTLD_LAZY | RTLD_GLOBAL);
+#endif
 
 	if (parentInterp != PY_PARENT) {
 		Py_Initialize(); /* void */
-		if (init_python_tclpy(interp) == NULL)
+		PyObject *m = init_python_tclpy(interp);
+		if (m == NULL)
 			return TCL_ERROR;
+		/* Register tclpy in sys.modules so Python code can import it */
+		PyObject *sys_modules = PyImport_GetModuleDict();
+		if (PyDict_SetItemString(sys_modules, "tclpy", m) != 0) {
+			Py_DECREF(m);
+			return TCL_ERROR;
+		}
+		Py_DECREF(m);
 	}
 
 	/* Get support for full tracebacks */

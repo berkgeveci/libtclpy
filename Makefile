@@ -5,11 +5,8 @@ DFLAGS = -DPACKAGE_VERSION='"$(PACKAGE_VERSION)"'
 # Flags to improve security
 CFLAGS_SEC = \
 	-fstack-protector \
-	--param=ssp-buffer-size=4 \
 	-Wformat \
-	-Werror=format-security \
-	-D_FORTIFY_SOURCE=2\
-	-Wl,-z,relro,-z,now
+	-Werror=format-security
 # Protect against my own poor programming
 CFLAGS_SAFE = -fno-strict-overflow
 # Tell me when I'm doing something wrong
@@ -47,10 +44,10 @@ TCL_LIB     = $(shell . "$(TCLCONFIG)"; \
 	fi \
 )
 TCL_INCLUDE = $(shell . "$(TCLCONFIG)"; echo $$TCL_INCLUDE_SPEC)
-PY_LIB      = $(shell python3-config --libs)
+PY_LIB      = $(shell python3-config --libs --ldflags)
 PY_INCLUDE  = $(shell python3-config --includes)
 
-PY_LIBFILE  = $(shell python3 -c 'import distutils.sysconfig; print(distutils.sysconfig.get_config_var("LDLIBRARY"))')
+PY_LIBFILE  = $(shell python3 -c 'import sysconfig; print(sysconfig.get_config_var("LDLIBRARY"))')
 CFLAGS += -DPY_LIBFILE='"$(PY_LIBFILE)"'
 
 default: libtclpy$(PACKAGE_VERSION).so
@@ -58,7 +55,7 @@ default: libtclpy$(PACKAGE_VERSION).so
 libtclpy$(PACKAGE_VERSION).so: tclpy.o pkgIndex.tcl
 	@$(TCLCONFIG_TEST)
 	rm -f libtclpy.so tclpy.so
-	gcc -shared -fPIC $(CFLAGS) $< -o $@ -Wl,--export-dynamic $(TCL_LIB) $(PY_LIB)
+	gcc -bundle -fPIC $(CFLAGS) $< -o $@ $(TCL_LIB) $(PY_LIB)
 	ln -s $@ libtclpy.so
 	ln -s libtclpy.so tclpy.so
 
