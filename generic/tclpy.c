@@ -1,3 +1,4 @@
+#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <tcl.h>
 #include <assert.h>
@@ -459,7 +460,7 @@ tclpy_eval(PyObject *self, PyObject *args, PyObject *kwargs)
 		PyErr_SetString(PyExc_RuntimeError, tclString);
 		return NULL;
 	}
-	return Py_BuildValue("s#", tclString, tclStringSize);
+	return Py_BuildValue("s#", tclString, (Py_ssize_t)tclStringSize);
 }
 
 static PyMethodDef TclPyMethods[] = {
